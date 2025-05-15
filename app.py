@@ -73,6 +73,12 @@ with st.sidebar:
     if st.button("🔬 New Analysis", use_container_width=True):
         st.session_state.page = 'analysis'
         st.rerun()
+        
+    if st.button("👥 Patient Records", use_container_width=True):
+        st.session_state.page = 'patients'
+        # Refresh the patient list
+        st.session_state.patients = db.get_all_patients()
+        st.rerun()
     
     st.markdown("---")
     
@@ -197,6 +203,13 @@ if st.session_state.page == 'landing':
 elif st.session_state.page == 'analysis':
     # Analysis page (file upload and processing)
     st.title("STL Analysis Tool")
+    
+    # Show patient information if analyzing for a specific patient
+    if st.session_state.current_patient_id:
+        patient = db.get_patient(st.session_state.current_patient_id)
+        if patient:
+            st.info(f"Analyzing for Patient: {patient.name or patient.patient_id}")
+    
     st.markdown("Upload your files below to begin the analysis process.")
     
     col1, col2 = st.columns(2)
@@ -241,6 +254,10 @@ elif st.session_state.page == 'analysis':
             st.error(message)
             screws_zip = None
     
+    # Analysis notes
+    notes = st.text_area("Analysis Notes (optional)", 
+                       placeholder="Enter any notes about this analysis...")
+    
     # Process button
     if st.button("Process Files", disabled=not (medial_file and lateral_file and screw_files), type="primary"):
         if not (medial_file and lateral_file and screw_files):
@@ -281,10 +298,25 @@ elif st.session_state.page == 'analysis':
                     for temp_file in temp_screw_files:
                         os.unlink(temp_file)
                 
-                # Store results in session state
+                # Store results and save to database if there's a patient
                 if results:
                     st.session_state.results = results
                     st.session_state.analysis_complete = True
+                    
+                    # Save to database if we have a patient
+                    if st.session_state.current_patient_id and results:
+                        try:
+                            foot_side = results[0]['foot_side']
+                            db.add_analysis(
+                                patient_id=st.session_state.current_patient_id,
+                                foot_side=foot_side,
+                                results=results,
+                                notes=notes if notes else None
+                            )
+                            st.success(f"Analysis saved to patient record.")
+                        except Exception as e:
+                            st.error(f"Error saving to database: {str(e)}")
+                    
                     st.session_state.page = 'dashboard'
                     st.rerun()
 
@@ -402,6 +434,184 @@ elif st.session_state.page == 'dashboard' and st.session_state.analysis_complete
                 - For lateral breaches, adjust the screw entry point medially
                 - Consider using shorter screws for cases with minimal clearance
                 """)
+elif st.session_state.page == 'patients':
+    # Patient Records page
+    st.title("Patient Records")
+    
+    # Add new patient form
+    with st.expander("Add New Patient", expanded=False):
+        with st.form("new_patient_form"):
+            patient_id = st.text_input("Patient ID", placeholder="Enter unique patient identifier")
+            col1, col2 = st.columns(2)
+            with col1:
+                name = st.text_input("Patient Name", placeholder="Optional")
+            with col2:
+                age = st.number_input("Age", min_value=0, max_value=120, value=0, step=1)
+            
+            gender = st.selectbox("Gender", ["", "Male", "Female", "Other"])
+            
+            submit = st.form_submit_button("Add Patient")
+            
+            if submit and patient_id:
+                try:
+                    # Check if patient already exists
+                    existing = db.get_patient(patient_id)
+                    if existing:
+                        st.error(f"Patient with ID {patient_id} already exists.")
+                    else:
+                        # Add new patient
+                        db.add_patient(
+                            patient_id=patient_id,
+                            name=name if name else None,
+                            age=age if age > 0 else None,
+                            gender=gender if gender else None
+                        )
+                        st.success(f"Patient {patient_id} added successfully.")
+                        
+                        # Refresh patient list
+                        st.session_state.patients = db.get_all_patients()
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Error adding patient: {str(e)}")
+    
+    # Display patients
+    patients = st.session_state.patients
+    if not patients:
+        st.info("No patients found in the database. Add your first patient above.")
+    else:
+        st.subheader(f"Patient List ({len(patients)} patients)")
+        
+        # Convert patients to DataFrame for display
+        patient_data = []
+        for p in patients:
+            patient_data.append({
+                "ID": p.id,
+                "Patient ID": p.patient_id,
+                "Name": p.name or "-",
+                "Age": p.age or "-",
+                "Gender": p.gender or "-",
+                "Date Added": p.created_at.strftime("%Y-%m-%d") if p.created_at else "-",
+                "Actions": p.patient_id
+            })
+        
+        df = pd.DataFrame(patient_data)
+        
+        # Display table with action buttons
+        for i, row in df.iterrows():
+            col1, col2, col3, col4, col5, col6 = st.columns([1, 1.5, 1.5, 0.8, 1.2, 2])
+            
+            with col1:
+                st.text(f"#{row['ID']}")
+            with col2:
+                st.text(row["Patient ID"])
+            with col3:
+                st.text(row["Name"])
+            with col4:
+                st.text(row["Age"])
+            with col5:
+                st.text(row["Gender"])
+            with col6:
+                view_col, analyze_col = st.columns(2)
+                with view_col:
+                    if st.button("View History", key=f"view_{row['Patient ID']}"):
+                        st.session_state.current_patient_id = row["Patient ID"]
+                        st.session_state.patient_analyses = db.get_analyses_for_patient(row["Patient ID"])
+                        st.session_state.page = 'patient_history'
+                        st.rerun()
+                with analyze_col:
+                    if st.button("New Analysis", key=f"analyze_{row['Patient ID']}"):
+                        st.session_state.current_patient_id = row["Patient ID"]
+                        st.session_state.page = 'analysis'
+                        st.rerun()
+            
+            st.markdown("---")
+
+elif st.session_state.page == 'patient_history':
+    # Patient History page
+    patient_id = st.session_state.current_patient_id
+    patient = db.get_patient(patient_id)
+    analyses = st.session_state.patient_analyses
+    
+    if not patient:
+        st.error("Patient not found.")
+        st.button("Back to Patient List", on_click=lambda: setattr(st.session_state, 'page', 'patients'))
+    else:
+        st.title(f"Patient History: {patient.name or patient_id}")
+        st.subheader(f"Patient ID: {patient_id}")
+        
+        # Patient info
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Age", patient.age or "Not recorded")
+        with col2:
+            st.metric("Gender", patient.gender or "Not recorded")
+        with col3:
+            st.metric("Total Analyses", len(analyses))
+        
+        # Analysis list
+        if not analyses:
+            st.info("No analysis history for this patient.")
+            if st.button("Perform New Analysis"):
+                st.session_state.page = 'analysis'
+                st.rerun()
+        else:
+            st.subheader("Analysis History")
+            
+            for i, analysis in enumerate(analyses):
+                with st.expander(f"Analysis #{i+1} - {analysis.analysis_date.strftime('%Y-%m-%d %H:%M')} - {analysis.foot_side}"):
+                    # Get screws for this analysis
+                    screws = db.get_screws_for_analysis(analysis.id)
+                    
+                    col1, col2 = st.columns([1, 3])
+                    with col1:
+                        st.metric("Foot Side", analysis.foot_side)
+                        st.metric("Number of Screws", len(screws))
+                        
+                        # Count breaches
+                        medial_breaches = sum(1 for s in screws if s.has_medial_breach)
+                        lateral_breaches = sum(1 for s in screws if s.has_lateral_breach)
+                        
+                        if medial_breaches == 0 and lateral_breaches == 0:
+                            st.success("No breaches detected")
+                        else:
+                            st.warning(f"{medial_breaches + lateral_breaches} breaches detected")
+                            
+                    with col2:
+                        if screws:
+                            # Create DataFrame for screws
+                            screw_data = []
+                            for s in screws:
+                                screw_data.append({
+                                    "Screw #": s.screw_number,
+                                    "Medial Dist": f"{s.medial_shortest_positive:.2f} mm" if s.medial_shortest_positive else "-",
+                                    "Medial Breach": f"{s.medial_longest_negative:.2f} mm" if s.has_medial_breach else "No",
+                                    "Lateral Dist": f"{s.lateral_shortest_positive:.2f} mm" if s.lateral_shortest_positive else "-",
+                                    "Lateral Breach": f"{s.lateral_longest_negative:.2f} mm" if s.has_lateral_breach else "No"
+                                })
+                            
+                            # Display as table
+                            screw_df = pd.DataFrame(screw_data)
+                            st.table(screw_df)
+                    
+                    # Notes
+                    if analysis.notes:
+                        st.text("Notes:")
+                        st.text(analysis.notes)
+                    
+                    # Export to Excel
+                    if screws:
+                        excel_link = create_excel_download_link(
+                            screw_df,
+                            f"patient_{patient_id}_analysis_{analysis.id}.xlsx",
+                            "📊 Download as Excel"
+                        )
+                        st.markdown(excel_link, unsafe_allow_html=True)
+            
+            # New analysis button
+            if st.button("Perform New Analysis"):
+                st.session_state.page = 'analysis'
+                st.rerun()
+
 else:
     # Default to landing page if no valid state
     st.session_state.page = 'landing'
