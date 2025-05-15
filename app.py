@@ -7,11 +7,13 @@ import tempfile
 import pandas as pd
 import time
 import base64
+import datetime
 from typing import List, Dict, Tuple, Optional
 
 from utils import validate_stl_file, validate_zip_file
 from processing import process_screw_placement
 from visualization import plot_3d_results, plot_distance_graph
+from database import db
 
 # Set page config
 st.set_page_config(
@@ -21,13 +23,25 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Create a session state for navigation
+# Create a session state for navigation and data
 if 'page' not in st.session_state:
     st.session_state.page = 'landing'
 if 'analysis_complete' not in st.session_state:
     st.session_state.analysis_complete = False
 if 'results' not in st.session_state:
     st.session_state.results = []
+if 'current_patient_id' not in st.session_state:
+    st.session_state.current_patient_id = None
+if 'patients' not in st.session_state:
+    st.session_state.patients = []
+if 'patient_analyses' not in st.session_state:
+    st.session_state.patient_analyses = []
+    
+# Load patients from database initially
+try:
+    st.session_state.patients = db.get_all_patients()
+except Exception as e:
+    st.error(f"Failed to load patients from database: {str(e)}")
     
 # Download functions
 def create_excel_download_link(df, filename, link_text):
