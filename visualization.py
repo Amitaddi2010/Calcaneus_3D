@@ -1,20 +1,16 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib
-from mpl_toolkits.mplot3d import Axes3D
+import plotly.graph_objects as go
 from typing import Dict, List, Tuple, Any, Optional
 
-matplotlib.use('Agg')  # Use a non-interactive backend for Streamlit compatibility
-
-def plot_3d_results(result: Dict[str, Any]) -> plt.Figure:
+def plot_3d_results(result: Dict[str, Any]) -> go.Figure:
     """
-    Create a 3D visualization of the screw placement analysis.
+    Create an interactive 3D visualization of the screw placement analysis using Plotly.
     
     Args:
         result: Dict containing analysis results
         
     Returns:
-        matplotlib Figure with the 3D visualization
+        plotly Figure with the interactive 3D visualization
     """
     screw_points = result['screw_points']
     medial_vertices = result['medial_vertices']
@@ -27,8 +23,7 @@ def plot_3d_results(result: Dict[str, Any]) -> plt.Figure:
     foot_side = result['foot_side']
     
     # Create figure
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection='3d')
+    fig = go.Figure()
     
     # Plot downsampled points for better performance
     downsample = lambda arr, factor: arr[::factor]
@@ -39,90 +34,97 @@ def plot_3d_results(result: Dict[str, Any]) -> plt.Figure:
     screw_factor = max(1, len(screw_points) // 1000)
     
     # Plot surfaces and screw
-    ax.scatter(
-        downsample(medial_vertices[:, 0], medial_factor),
-        downsample(medial_vertices[:, 1], medial_factor),
-        downsample(medial_vertices[:, 2], medial_factor),
-        c='red', alpha=0.3, label='Medial Wall', s=10
-    )
-    ax.scatter(
-        downsample(lateral_vertices[:, 0], lateral_factor),
-        downsample(lateral_vertices[:, 1], lateral_factor),
-        downsample(lateral_vertices[:, 2], lateral_factor),
-        c='blue', alpha=0.3, label='Lateral Wall', s=10
-    )
-    ax.scatter(
-        downsample(screw_points[:, 0], screw_factor),
-        downsample(screw_points[:, 1], screw_factor),
-        downsample(screw_points[:, 2], screw_factor),
-        c='magenta', alpha=0.6, label='Screw', s=15
-    )
+    fig.add_trace(go.Scatter3d(
+        x=downsample(medial_vertices[:, 0], medial_factor),
+        y=downsample(medial_vertices[:, 1], medial_factor),
+        z=downsample(medial_vertices[:, 2], medial_factor),
+        mode='markers',
+        marker=dict(size=2, color='red', opacity=0.3),
+        name='Medial Wall'
+    ))
+    
+    fig.add_trace(go.Scatter3d(
+        x=downsample(lateral_vertices[:, 0], lateral_factor),
+        y=downsample(lateral_vertices[:, 1], lateral_factor),
+        z=downsample(lateral_vertices[:, 2], lateral_factor),
+        mode='markers',
+        marker=dict(size=2, color='blue', opacity=0.3),
+        name='Lateral Wall'
+    ))
+    
+    fig.add_trace(go.Scatter3d(
+        x=downsample(screw_points[:, 0], screw_factor),
+        y=downsample(screw_points[:, 1], screw_factor),
+        z=downsample(screw_points[:, 2], screw_factor),
+        mode='markers',
+        marker=dict(size=3, color='magenta', opacity=0.6),
+        name='Screw'
+    ))
     
     # Plot screw axis points
-    ax.scatter(axis_pts[:, 0], axis_pts[:, 1], axis_pts[:, 2], 
-               c='yellow', s=10, label='Screw Axis')
+    fig.add_trace(go.Scatter3d(
+        x=axis_pts[:, 0],
+        y=axis_pts[:, 1],
+        z=axis_pts[:, 2],
+        mode='markers',
+        marker=dict(size=2, color='yellow'),
+        name='Screw Axis'
+    ))
     
     # Plot measurement lines
     n_points = len(axis_pts)
     for i in range(n_points):
         if not np.isnan(signed_medial[i]):
-            if signed_medial[i] < 0:  # Breach
-                line_style = 'r--'  # Dashed red for breach
-                line_width = 2
-            else:
-                line_style = 'r-'
-                line_width = 1
-                
-            ax.plot([axis_pts[i, 0], medial_hit[i, 0]], 
-                    [axis_pts[i, 1], medial_hit[i, 1]], 
-                    [axis_pts[i, 2], medial_hit[i, 2]], 
-                    line_style, linewidth=line_width)
-                    
+            color = 'red' if signed_medial[i] < 0 else 'green'
+            width = 3 if signed_medial[i] < 0 else 1
+            fig.add_trace(go.Scatter3d(
+                x=[axis_pts[i, 0], medial_hit[i, 0]],
+                y=[axis_pts[i, 1], medial_hit[i, 1]],
+                z=[axis_pts[i, 2], medial_hit[i, 2]],
+                mode='lines',
+                line=dict(color=color, width=width),
+                showlegend=False
+            ))
+            
         if not np.isnan(signed_lateral[i]):
-            if signed_lateral[i] < 0:  # Breach
-                line_style = 'b--'  # Dashed blue for breach
-                line_width = 2
-            else:
-                line_style = 'b-'
-                line_width = 1
-                
-            ax.plot([axis_pts[i, 0], lateral_hit[i, 0]], 
-                    [axis_pts[i, 1], lateral_hit[i, 1]], 
-                    [axis_pts[i, 2], lateral_hit[i, 2]], 
-                    line_style, linewidth=line_width)
+            color = 'blue' if signed_lateral[i] < 0 else 'green'
+            width = 3 if signed_lateral[i] < 0 else 1
+            fig.add_trace(go.Scatter3d(
+                x=[axis_pts[i, 0], lateral_hit[i, 0]],
+                y=[axis_pts[i, 1], lateral_hit[i, 1]],
+                z=[axis_pts[i, 2], lateral_hit[i, 2]],
+                mode='lines',
+                line=dict(color=color, width=width),
+                showlegend=False
+            ))
     
-    # Add labels and legend
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    plt.title(f'XY-Plane Signed Distances with Breach Logic ({foot_side})')
-    plt.legend(loc='upper right', fontsize=8)
+    # Update layout
+    fig.update_layout(
+        title=f'3D Visualization of Screw Placement ({foot_side})',
+        scene=dict(
+            xaxis_title='X',
+            yaxis_title='Y',
+            zaxis_title='Z',
+            aspectmode='data'
+        ),
+        showlegend=True,
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01
+        )
+    )
     
-    # Set equal aspect ratio
-    max_range = np.array([
-        ax.get_xlim()[1] - ax.get_xlim()[0],
-        ax.get_ylim()[1] - ax.get_ylim()[0],
-        ax.get_zlim()[1] - ax.get_zlim()[0]
-    ]).max() / 2.0
-    
-    mid_x = (ax.get_xlim()[1] + ax.get_xlim()[0]) / 2
-    mid_y = (ax.get_ylim()[1] + ax.get_ylim()[0]) / 2
-    mid_z = (ax.get_zlim()[1] + ax.get_zlim()[0]) / 2
-    
-    ax.set_xlim(mid_x - max_range, mid_x + max_range)
-    ax.set_ylim(mid_y - max_range, mid_y + max_range)
-    ax.set_zlim(mid_z - max_range, mid_z + max_range)
-    
-    plt.tight_layout()
     return fig
 
 def plot_distance_graph(
     axis_pts: np.ndarray, 
     signed_medial: np.ndarray, 
     signed_lateral: np.ndarray
-) -> plt.Figure:
+) -> go.Figure:
     """
-    Create a 2D graph showing the signed distances along the screw axis.
+    Create an interactive 2D graph showing the signed distances along the screw axis using Plotly.
     
     Args:
         axis_pts: Array of points along the screw axis
@@ -130,7 +132,7 @@ def plot_distance_graph(
         signed_lateral: Array of signed distances to the lateral wall
         
     Returns:
-        matplotlib Figure with the distance graph
+        plotly Figure with the interactive distance graph
     """
     # Calculate distance along screw axis
     axis_dist = np.zeros(len(axis_pts))
@@ -138,58 +140,76 @@ def plot_distance_graph(
         axis_dist[i] = axis_dist[i-1] + np.linalg.norm(axis_pts[i] - axis_pts[i-1])
     
     # Create figure
-    fig, ax = plt.figure(figsize=(8, 4)), plt.gca()
-    
-    # Plot distances
-    medial_mask = ~np.isnan(signed_medial)
-    lateral_mask = ~np.isnan(signed_lateral)
+    fig = go.Figure()
     
     # Plot breach threshold line
-    plt.axhline(y=0, color='k', linestyle='-', alpha=0.5)
+    fig.add_hline(y=0, line=dict(color='black', width=1, dash='solid'))
     
     # Plot medial distances
+    medial_mask = ~np.isnan(signed_medial)
     if np.any(medial_mask):
-        ax.scatter(axis_dist[medial_mask], signed_medial[medial_mask], 
-                   c='red', label='Medial Wall Distance', alpha=0.7, s=20)
-        
-        # Connect points with lines
-        ax.plot(axis_dist[medial_mask], signed_medial[medial_mask], 
-                'r-', alpha=0.4)
+        fig.add_trace(go.Scatter(
+            x=axis_dist[medial_mask],
+            y=signed_medial[medial_mask],
+            mode='lines+markers',
+            name='Medial Wall Distance',
+            line=dict(color='red', width=2),
+            marker=dict(size=6, color='red')
+        ))
     
     # Plot lateral distances
+    lateral_mask = ~np.isnan(signed_lateral)
     if np.any(lateral_mask):
-        ax.scatter(axis_dist[lateral_mask], signed_lateral[lateral_mask], 
-                   c='blue', label='Lateral Wall Distance', alpha=0.7, s=20)
-        
-        # Connect points with lines
-        ax.plot(axis_dist[lateral_mask], signed_lateral[lateral_mask], 
-                'b-', alpha=0.4)
+        fig.add_trace(go.Scatter(
+            x=axis_dist[lateral_mask],
+            y=signed_lateral[lateral_mask],
+            mode='lines+markers',
+            name='Lateral Wall Distance',
+            line=dict(color='blue', width=2),
+            marker=dict(size=6, color='blue')
+        ))
     
-    # Highlight negative values (breaches)
+    # Highlight breaches
     medial_breach = np.logical_and(medial_mask, signed_medial < 0)
     lateral_breach = np.logical_and(lateral_mask, signed_lateral < 0)
     
     if np.any(medial_breach):
-        ax.scatter(axis_dist[medial_breach], signed_medial[medial_breach],
-                   c='darkred', marker='x', s=80, label='Medial Breach')
+        fig.add_trace(go.Scatter(
+            x=axis_dist[medial_breach],
+            y=signed_medial[medial_breach],
+            mode='markers',
+            name='Medial Breach',
+            marker=dict(size=10, color='darkred', symbol='x')
+        ))
     
     if np.any(lateral_breach):
-        ax.scatter(axis_dist[lateral_breach], signed_lateral[lateral_breach],
-                   c='darkblue', marker='x', s=80, label='Lateral Breach')
+        fig.add_trace(go.Scatter(
+            x=axis_dist[lateral_breach],
+            y=signed_lateral[lateral_breach],
+            mode='markers',
+            name='Lateral Breach',
+            marker=dict(size=10, color='darkblue', symbol='x')
+        ))
     
-    # Add labels and legend
-    ax.set_xlabel('Distance Along Screw Axis (mm)')
-    ax.set_ylabel('Wall Distance (mm)')
-    ax.set_title('Bone Wall Distances Along Screw Axis')
-    ax.grid(True, alpha=0.3)
-    ax.legend()
+    # Update layout
+    fig.update_layout(
+        title='Bone Wall Distances Along Screw Axis',
+        xaxis_title='Distance Along Screw Axis (mm)',
+        yaxis_title='Wall Distance (mm)',
+        showlegend=True,
+        hovermode='x unified',
+        annotations=[
+            dict(
+                text="⚠️ Negative values indicate a breach through the bone surface",
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.01,
+                showarrow=False,
+                bgcolor="yellow",
+                opacity=0.2
+            )
+        ] if np.any(medial_breach) or np.any(lateral_breach) else []
+    )
     
-    # Add annotation for breach interpretation
-    if np.any(medial_breach) or np.any(lateral_breach):
-        plt.figtext(0.5, 0.01, 
-                    "⚠️ Negative values indicate a breach through the bone surface", 
-                    ha="center", fontsize=10, 
-                    bbox={"facecolor":"yellow", "alpha":0.2, "pad":5})
-    
-    plt.tight_layout()
     return fig

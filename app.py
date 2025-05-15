@@ -9,6 +9,7 @@ import time
 import base64
 import datetime
 from typing import List, Dict, Tuple, Optional
+import plotly.graph_objects as go
 
 from utils import validate_stl_file, validate_zip_file
 from processing import process_screw_placement
@@ -103,11 +104,11 @@ with st.sidebar:
     
     # Display calcaneus anatomy image
     st.subheader("Calcaneus Anatomy")
-    st.image("https://pixabay.com/get/ge0620f777aa4d4de1820d0019138b9d9aa85b890281e831f4a1ac962001208a93843c0d25ba41787b09af9c55cd9d5d7eb18c33f3ae3c9edc06278705be8faaf_1280.jpg")
+    st.image("generated-icon.png")
     
     # Display orthopedic visualization image
     st.subheader("Orthopedic Visualization")
-    st.image("https://pixabay.com/get/gcafd3319db3a0cff55b7497ab36a732cd4c01ecbfd1c66941cb80fe81687f1c4909ca8c24a6d8f4560ce4452c553fda579f7ebe14e8fece5b7838a1f8da9f50b_1280.jpg")
+    st.image("generated-icon.png")
 
 # Content based on the current page
 if st.session_state.page == 'landing':
@@ -142,7 +143,7 @@ if st.session_state.page == 'landing':
     
     with col2:
         # Hero image
-        st.image("https://pixabay.com/get/gb3c0b7eaf58e1ea30b91d52276d1ebed1fa583aa8a31f97a1a40ef1eb80c5ca24b78a9e71ec0b4bbb2c2c3a0267a8f9f10d6c1bcc6cbdf71b3c07c2bd64ed86a_1280.jpg", 
+        st.image("generated-icon.png", 
                  caption="Advanced 3D Analysis Technology")
     
     # Features section
@@ -277,7 +278,7 @@ elif st.session_state.page == 'analysis':
                     for i, screw_data in enumerate(screw_files):
                         with tempfile.NamedTemporaryFile(suffix='.stl', delete=False) as temp_screw:
                             temp_screw.write(screw_data)
-                            temp_screw_files.append(temp_screw.name)
+                            temp_screw_files.append(temp_screw)
                     
                     results = []
                     for i, screw_file in enumerate(temp_screw_files):
@@ -286,17 +287,23 @@ elif st.session_state.page == 'analysis':
                         progress_bar = st.progress(0)
                         
                         try:
-                            result = process_screw_placement(temp_medial.name, temp_lateral.name, screw_file)
+                            result = process_screw_placement(temp_medial.name, temp_lateral.name, screw_file.name)
                             results.append(result)
                             progress_bar.progress((i+1)/len(temp_screw_files))
                         except Exception as e:
                             st.error(f"Error processing screw {i+1}: {str(e)}")
                             
                     # Delete temporary files
-                    os.unlink(temp_medial.name)
-                    os.unlink(temp_lateral.name)
-                    for temp_file in temp_screw_files:
-                        os.unlink(temp_file)
+                    try:
+                        temp_medial.close()
+                        temp_lateral.close()
+                        os.unlink(temp_medial.name)
+                        os.unlink(temp_lateral.name)
+                        for temp_file in temp_screw_files:
+                            temp_file.close()
+                            os.unlink(temp_file.name)
+                    except Exception as e:
+                        st.warning(f"Warning: Could not clean up some temporary files: {str(e)}")
                 
                 # Store results and save to database if there's a patient
                 if results:
@@ -368,7 +375,7 @@ elif st.session_state.page == 'dashboard' and st.session_state.analysis_complete
                 with col1:
                     st.subheader("3D Visualization")
                     fig = plot_3d_results(result)
-                    st.pyplot(fig)
+                    st.plotly_chart(fig, use_container_width=True)
                     
                 with col2:
                     st.subheader("Distance Measurements")
@@ -382,7 +389,7 @@ elif st.session_state.page == 'dashboard' and st.session_state.analysis_complete
                         result['signed_medial'], 
                         result['signed_lateral']
                     )
-                    st.pyplot(dist_fig)
+                    st.plotly_chart(dist_fig, use_container_width=True)
                     
                     # Summary statistics
                     st.subheader("Summary Statistics")

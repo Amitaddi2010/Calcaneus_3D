@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker, relationship
 Base = declarative_base()
 
 # Get database URL from environment variable
-database_url = os.environ.get('DATABASE_URL')
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///calcaneus.db')
 
 # Patient model
 class Patient(Base):
@@ -104,9 +104,7 @@ class Database:
     def __init__(self):
         self.engine = create_engine(database_url)
         self.Session = sessionmaker(bind=self.engine)
-        
-    def create_tables(self):
-        """Create all tables in the database"""
+        # Create tables if they don't exist
         Base.metadata.create_all(self.engine)
         
     def get_session(self):
