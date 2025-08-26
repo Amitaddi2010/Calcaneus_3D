@@ -24,7 +24,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Create a session state for navigation and data
+# Initialize session state FIRST - before any other operations
 if 'page' not in st.session_state:
     st.session_state.page = 'landing'
 if 'analysis_complete' not in st.session_state:
@@ -37,12 +37,17 @@ if 'patients' not in st.session_state:
     st.session_state.patients = []
 if 'patient_analyses' not in st.session_state:
     st.session_state.patient_analyses = []
-    
-# Load patients from database initially
-try:
-    st.session_state.patients = db.get_all_patients()
-except Exception as e:
-    st.error(f"Failed to load patients from database: {str(e)}")
+if 'patients_loaded' not in st.session_state:
+    st.session_state.patients_loaded = False
+
+# Load patients from database initially (only once)
+if not st.session_state.patients_loaded:
+    try:
+        st.session_state.patients = db.get_all_patients()
+        st.session_state.patients_loaded = True
+    except Exception as e:
+        st.error(f"Failed to load patients from database: {str(e)}")
+        st.session_state.patients = []
     
 # Download functions
 def create_excel_download_link(df, filename, link_text):
@@ -104,11 +109,17 @@ with st.sidebar:
     
     # Display calcaneus anatomy image
     st.subheader("Calcaneus Anatomy")
-    st.image("generated-icon.png")
-    
+    try:
+        st.image("generated-icon.png")
+    except Exception as e:
+        st.info("📊 Calcaneus anatomy visualization will be displayed here")
+
     # Display orthopedic visualization image
     st.subheader("Orthopedic Visualization")
-    st.image("generated-icon.png")
+    try:
+        st.image("generated-icon.png")
+    except Exception as e:
+        st.info("🦴 3D orthopedic visualization will be displayed here")
 
 # Content based on the current page
 if st.session_state.page == 'landing':
@@ -143,8 +154,11 @@ if st.session_state.page == 'landing':
     
     with col2:
         # Hero image
-        st.image("generated-icon.png", 
-                 caption="Advanced 3D Analysis Technology")
+        try:
+            st.image("generated-icon.png",
+                     caption="Advanced 3D Analysis Technology")
+        except Exception as e:
+            st.info("🔬 Advanced 3D Analysis Technology\n\nVisualization coming soon...")
     
     # Features section
     st.markdown("<h2 style='text-align: center; margin-top: 2rem;'>Features</h2>", unsafe_allow_html=True)

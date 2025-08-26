@@ -1,6 +1,6 @@
 [server]
-port = 8503
-address = "0.0.0.0"
+port = 8085
+address = "localhost"
 headless = true
 enableCORS = true
 enableXsrfProtection = true
@@ -8,7 +8,7 @@ enableXsrfProtection = true
 [browser]
 gatherUsageStats = false
 serverAddress = "localhost"
-serverPort = 8503
+serverPort = 8085
 
 [theme]
 primaryColor = "#FF4B4B"

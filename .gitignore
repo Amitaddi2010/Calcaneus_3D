@@ -1,4 +1,3 @@
-# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -19,33 +18,17 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# Virtual Environment
+MANIFEST
+.env
+.venv
+env/
 venv/
 ENV/
-env/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Database
+env.bak/
+venv.bak/
+.streamlit/secrets.toml
 *.db
+*.sqlite
 *.sqlite3
-
-# Logs
-*.log
-
-# Local development
-.env
-.env.local
-.env.*.local
-
-# Streamlit
-.streamlit/
-
-# Temporary files
-*.tmp
-*.temp 
+.DS_Store
+Thumbs.db
